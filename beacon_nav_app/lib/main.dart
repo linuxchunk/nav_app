@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'screens/home_screen.dart';
 
-const apiKey = 'api_here'; // Replace with your actual API key
+const apiKey =
+    'AIzaSyBTEiIqlnJe4a8L2H9WMPeqFBVTQ2PllYA'; // Replace with your actual API key
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

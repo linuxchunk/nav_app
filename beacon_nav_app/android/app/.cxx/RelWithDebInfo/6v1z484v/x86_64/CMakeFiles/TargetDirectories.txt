@@ -1,0 +1,2 @@
+C:/Users/linux/freelance/blebeacon/beacon_nav_app/android/app/.cxx/RelWithDebInfo/6v1z484v/x86_64/CMakeFiles/edit_cache.dir
+C:/Users/linux/freelance/blebeacon/beacon_nav_app/android/app/.cxx/RelWithDebInfo/6v1z484v/x86_64/CMakeFiles/rebuild_cache.dir

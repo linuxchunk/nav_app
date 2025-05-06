@@ -1,0 +1,1 @@
+C:\Users\linux\freelance\blebeacon\beacon_nav_app\build\app\intermediates\cxx\RelWithDebInfo\6v1z484v\obj\armeabi-v7a

@@ -1,0 +1,20 @@
+{
+  "buildFiles": [
+    "C:\\Users\\linux\\flutter\\packages\\flutter_tools\\gradle\\src\\main\\groovy\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\linux\\AppData\\Local\\Android\\sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "C:\\Users\\linux\\freelance\\blebeacon\\beacon_nav_app\\android\\app\\.cxx\\Debug\\835593u2\\x86",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\linux\\AppData\\Local\\Android\\sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "C:\\Users\\linux\\freelance\\blebeacon\\beacon_nav_app\\android\\app\\.cxx\\Debug\\835593u2\\x86",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {}
+}
