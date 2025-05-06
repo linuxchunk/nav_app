@@ -38,15 +38,26 @@ class _NavigationScreenState extends State<NavigationScreen> {
     "E8:68:EA:F6:BE:90": "Pharmacy",
     "30:C6:F7:28:E9:40": "Patient Ward",
     "24:6F:28:15:8D:9C": "Emergency Room",
-    // Add your ESP32 beacon MAC address here if different
-    "87:B9:9B:2C:95:FF": "Mall Entrance", // This should match your ESP32 beacon
   };
+
+  // Additional map to store the reverse mapping for UI display
+  Map<String, String> _beaconDisplayMap = {};
 
   @override
   void initState() {
     super.initState();
+    _initializeBeaconDisplayMap();
     _initializeTts();
     _checkBluetoothState();
+  }
+
+  void _initializeBeaconDisplayMap() {
+    // Create reverse mapping for display purposes
+    _beaconDisplayMap = Map.fromEntries(
+      beaconLocations.entries.map(
+        (entry) => MapEntry(entry.key, entry.value),
+      ),
+    );
   }
 
   Future<void> _initializeTts() async {
@@ -119,79 +130,109 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   void _startScanning() async {
-  // Cancel any existing subscription
-  await _scanSubscription?.cancel();
-  
-  setState(() {
-    _isScanning = true;
-    _navigationStatus = "Scanning for beacons...";
-    _scanAttempts = 0;
-  });
-
-  try {
-    // Make sure we're not already scanning
-    if (await FlutterBluePlus.isScanning.first) {
-      await FlutterBluePlus.stopScan();
-    }
+    // Cancel any existing subscription
+    await _scanSubscription?.cancel();
     
-    // Start listening for scan results
-    _scanSubscription = FlutterBluePlus.scanResults.listen(
-      (results) {
-        for (ScanResult result in results) {
-          String deviceId = result.device.id.toString();
-          String deviceName = result.device.name;
-          
-          // Debug log
-          print('Found device: $deviceId, Name: $deviceName, RSSI: ${result.rssi}');
-          
-          // Check both MAC address and device name for matching
-          if (beaconLocations.containsKey(deviceId) || 
-              deviceName == "Mall_Entrance" || 
-              deviceName.contains("Beacon")) {
-            
-            double distance = _calculateDistance(
-                result.rssi, result.advertisementData.txPowerLevel ?? -59);
-            
-            setState(() {
-              _distances[deviceId] = distance;
-              _lastRssi[deviceId] = result.rssi;
-              if (!_foundBeacons.contains(deviceId)) {
-                _foundBeacons.add(deviceId);
-                print('New beacon found: $deviceId, Name: ${result.device.name}');
-              }
-            });
-
-            if (_targetLocation == deviceId) {
-              _provideNavigation(deviceId, distance, result.rssi);
-            }
-          }
-        }
-      },
-      onError: (error) {
-        print('Scan error: $error');
-        _restartScan();
-      },
-    );
-
-    // Start the scan with simplified parameters
-    await FlutterBluePlus.startScan(
-      timeout: const Duration(seconds: 10),
-      androidScanMode: AndroidScanMode.lowLatency,
-    ).then((_) {
-      // After timeout, restart scan if we haven't found any beacons
-      if (_foundBeacons.isEmpty) {
-        _restartScan();
-      }
-    }).catchError((e) {
-      print('Error starting scan: $e');
-      _restartScan();
+    setState(() {
+      _isScanning = true;
+      _navigationStatus = "Scanning for beacons...";
+      _scanAttempts = 0;
     });
 
-  } catch (e) {
-    print('Exception during scanning: $e');
-    _restartScan();
+    try {
+      // Make sure we're not already scanning
+      if (await FlutterBluePlus.isScanning.first) {
+        await FlutterBluePlus.stopScan();
+      }
+      
+      // Start listening for scan results
+      _scanSubscription = FlutterBluePlus.scanResults.listen(
+        (results) {
+          for (ScanResult result in results) {
+            String deviceId = result.device.id.toString();
+            String deviceName = result.device.name;
+            
+            // Debug log
+            print('Found device: $deviceId, Name: $deviceName, RSSI: ${result.rssi}');
+            
+            // Check if this is a beacon we're interested in
+            String? locationName;
+            
+            // First check if it's in our predefined map by MAC address
+            if (beaconLocations.containsKey(deviceId)) {
+              locationName = beaconLocations[deviceId];
+            } 
+            // Then check by device name patterns
+            else if (deviceName.isNotEmpty) {
+              if (deviceName == "Mall_Entrance") {
+                locationName = "Mall Entrance";
+                // Add to our display map for UI consistency
+                _beaconDisplayMap[deviceId] = locationName;
+              } else if (deviceName.contains("Beacon")) {
+                // Try to determine location from beacon name
+                if (deviceName.contains("Entrance")) {
+                  locationName = "Hospital Entrance";
+                } else if (deviceName.contains("Pharmacy")) {
+                  locationName = "Pharmacy";
+                } else if (deviceName.contains("Ward")) {
+                  locationName = "Patient Ward";
+                } else if (deviceName.contains("Emergency")) {
+                  locationName = "Emergency Room";
+                } else {
+                  // Generic name for unknown beacons
+                  locationName = "Beacon ${deviceName.replaceAll('Beacon', '').trim()}";
+                }
+                // Add to our display map
+                _beaconDisplayMap[deviceId] = locationName;
+              }
+            }
+            
+            // Only process if we identified this as a beacon of interest
+            if (locationName != null) {
+              double distance = _calculateDistance(
+                  result.rssi, result.advertisementData.txPowerLevel ?? -59);
+              
+              setState(() {
+                _distances[deviceId] = distance;
+                _lastRssi[deviceId] = result.rssi;
+                if (!_foundBeacons.contains(deviceId)) {
+                  _foundBeacons.add(deviceId);
+                  print('New beacon found: $deviceId, Name: $locationName');
+                }
+              });
+
+              if (_targetLocation == deviceId) {
+                _provideNavigation(deviceId, distance, result.rssi);
+              }
+            }
+          }
+        },
+        onError: (error) {
+          print('Scan error: $error');
+          _restartScan();
+        },
+      );
+
+      // Start the scan with simplified parameters
+      await FlutterBluePlus.startScan(
+        timeout: const Duration(seconds: 10),
+        androidScanMode: AndroidScanMode.lowLatency,
+      ).then((_) {
+        // After timeout, restart scan if we haven't found any beacons
+        if (_foundBeacons.isEmpty) {
+          _restartScan();
+        }
+      }).catchError((e) {
+        print('Error starting scan: $e');
+        _restartScan();
+      });
+
+    } catch (e) {
+      print('Exception during scanning: $e');
+      _restartScan();
+    }
   }
-}
+  
   void _restartScan() {
     _scanAttempts++;
     print('Restart scan attempt: $_scanAttempts');
@@ -285,9 +326,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final now = DateTime.now();
     bool shouldSpeak = now.difference(_lastUpdateTime).inMilliseconds >= 3000;
 
+    // Use our display map to get the proper location name
+    String locationName = _beaconDisplayMap[beaconId] ?? "Unknown Location";
+
     setState(() {
-      _navigationStatus =
-          "Distance to ${beaconLocations[beaconId]}: ${distance.toStringAsFixed(1)} meters";
+      _navigationStatus = "Distance to $locationName: ${distance.toStringAsFixed(1)} meters";
     });
 
     if (_hasReachedDestination && distance > 1.5) {
@@ -299,7 +342,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       String message = "";
 
       if (distance < 1 && !_hasReachedDestination) {
-        message = "You have reached ${beaconLocations[beaconId]}";
+        message = "You have reached $locationName";
         _hasReachedDestination = true;
         _navigationTimer?.cancel();
       } else if (!_hasReachedDestination) {
@@ -307,12 +350,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
         String proximity = "";
 
         if (distance < 3) {
-          proximity = "You are very close to ${beaconLocations[beaconId]}. ";
+          proximity = "You are very close to $locationName. ";
         } else if (distance < 7) {
-          proximity =
-              "You are getting closer to ${beaconLocations[beaconId]}. ";
+          proximity = "You are getting closer to $locationName. ";
         } else {
-          proximity = "Continue walking towards ${beaconLocations[beaconId]}. ";
+          proximity = "Continue walking towards $locationName. ";
         }
 
         String clockDirection = _getClockDirection(rssi);
@@ -328,9 +370,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   void _selectDestination(String beaconId) {
+    // Use our display map to get the proper location name
+    String locationName = _beaconDisplayMap[beaconId] ?? "Unknown Location";
+    
     setState(() {
       _targetLocation = beaconId;
-      _navigationStatus = "Navigating to ${beaconLocations[beaconId]}";
+      _navigationStatus = "Navigating to $locationName";
       _lastDistance = 0;
       _lastDirection = 0;
       _hasReachedDestination = false;
@@ -339,7 +384,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     });
 
     _navigationTimer?.cancel();
-    _addToSpeechQueue("Starting navigation to ${beaconLocations[beaconId]}. "
+    _addToSpeechQueue("Starting navigation to $locationName. "
         "Please wait while I scan for the beacon.");
 
     // Make sure we're scanning for beacons
@@ -406,10 +451,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                   ...List.generate(_foundBeacons.length, (index) {
                     String beaconId = _foundBeacons[index];
                     double distance = _distances[beaconId] ?? 0.0;
+                    // Use our display map for proper names
+                    String locationName = _beaconDisplayMap[beaconId] ?? "Unknown Beacon";
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4.0),
                       child: Text(
-                        "${beaconLocations[beaconId] ?? 'Unknown Beacon'}: ${distance.toStringAsFixed(1)}m",
+                        "$locationName: ${distance.toStringAsFixed(1)}m",
                         style: const TextStyle(fontSize: 16),
                       ),
                     );
